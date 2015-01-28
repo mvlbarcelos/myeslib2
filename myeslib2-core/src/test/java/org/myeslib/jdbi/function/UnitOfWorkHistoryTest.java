@@ -17,7 +17,6 @@ import java.util.UUID;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class UnitOfWorkHistoryTest {
@@ -32,33 +31,25 @@ public class UnitOfWorkHistoryTest {
     @Test(expected = NullPointerException.class)
     public void nullCommand() {
         UnitOfWorkHistory transactions = new UnitOfWorkHistory();
-        transactions.add(UnitOfWork.create(UUID.randomUUID(), null, Arrays.asList(Mockito.mock(Event.class))));
+        transactions.add(UnitOfWork.create(UUID.randomUUID(), null, 0L, Arrays.asList(Mockito.mock(Event.class))));
     }
 
     @Test(expected = NullPointerException.class)
     public void nullEventsList() {
         UnitOfWorkHistory transactions = new UnitOfWorkHistory();
-        transactions.add(UnitOfWork.create(UUID.randomUUID(), Mockito.mock(Command.class), null));
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void invalidVersion() {
-        UnitOfWorkHistory transactions = new UnitOfWorkHistory();
-        Command command = Mockito.mock(Command.class);
-        when(command.getTargetVersion()).thenReturn(-1L);
-        transactions.add(UnitOfWork.create(UUID.randomUUID(), command, Arrays.asList(Mockito.mock(Event.class))));
+        transactions.add(UnitOfWork.create(UUID.randomUUID(), Mockito.mock(Command.class), 0L, null));
     }
 
     @Test
     public void firstTransaction() {
         UUID id = UUID.randomUUID();
         UnitOfWorkHistory transactions = new UnitOfWorkHistory();
-        Command command = new CommandJustForTest(UUID.randomUUID(), id, 0L);
+        Command command = new CommandJustForTest(UUID.randomUUID(), id);
         Event event1 = new EventJustForTest(id, 1);
-        transactions.add(UnitOfWork.create(UUID.randomUUID(), command, Arrays.asList(event1)));
+        transactions.add(UnitOfWork.create(UUID.randomUUID(), command, 0L, Arrays.asList(event1)));
 
         assertThat(transactions.getUnitsOfWork().size(), is(1));
-        assertThat(transactions.getUnitsOfWork().get(0).getCommand(), sameInstance(command));
+        assertThat(transactions.getUnitsOfWork().get(0).getCommandId(), is(command.getCommandId()));
 
         assertThat(transactions.getAllEvents().size(), is(1));
         assertThat(transactions.getAllEvents().get(0), sameInstance(event1));
@@ -70,15 +61,15 @@ public class UnitOfWorkHistoryTest {
         UnitOfWorkHistory transactions = new UnitOfWorkHistory();
 
         UUID id = UUID.randomUUID();
-        Command command = new CommandJustForTest(UUID.randomUUID(), id, 0l);
+        Command command = new CommandJustForTest(UUID.randomUUID(), id);
         Event event1 = new EventJustForTest(id, 1);
         Event event2 = new EventJustForTest(id, 1);
 
-        transactions.add(UnitOfWork.create(UUID.randomUUID(), command, Arrays.asList(event1, event2)));
+        transactions.add(UnitOfWork.create(UUID.randomUUID(), command, 0L, Arrays.asList(event1, event2)));
 
         assertThat(transactions.getLastVersion(), is(1L));
         assertThat(transactions.getUnitsOfWork().size(), is(1));
-        assertThat(transactions.getUnitsOfWork().get(0).getCommand(), sameInstance(command));
+        assertThat(transactions.getUnitsOfWork().get(0).getCommandId(), is(command.getCommandId()));
 
         assertThat(transactions.getAllEvents().size(), is(2));
 
@@ -92,9 +83,9 @@ public class UnitOfWorkHistoryTest {
 
         UUID id = UUID.randomUUID();
         UnitOfWorkHistory transactions = new UnitOfWorkHistory();
-        Command command = new CommandJustForTest(UUID.randomUUID(), id, 1L);
+        Command command = new CommandJustForTest(UUID.randomUUID(), id);
         Event event1 = (Event) null;
-        transactions.add(UnitOfWork.create(UUID.randomUUID(), command, Arrays.asList(event1)));
+        transactions.add(UnitOfWork.create(UUID.randomUUID(), command, 1L, Arrays.asList(event1)));
 
     }
 

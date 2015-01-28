@@ -5,11 +5,12 @@ import org.myeslib.core.Event;
 import org.myeslib.data.Snapshot;
 import org.myeslib.data.UnitOfWorkHistory;
 import org.myeslib.function.SnapshotComputing;
+import org.myeslib.jdbi.function.StatefulEventBus;
 
 import java.util.List;
 
 @SuppressWarnings("serial")
-public class MutableSnapshotComputing<A extends AggregateRoot> implements SnapshotComputing<A> {
+public class EventBusSnapshotComputing<A extends AggregateRoot> implements SnapshotComputing<A> {
 
     @Override
     public Snapshot<A> applyEventsOn(final A aggregateRootInstance,
@@ -24,14 +25,8 @@ public class MutableSnapshotComputing<A extends AggregateRoot> implements Snapsh
         return aggregateRootInstance;
     }
 
-    private void _applyEventsOn(AggregateRoot instance, List<? extends Event> events) {
-        MultiMethod mm = MultiMethod.getMultiMethod(instance.getClass(), "on");
-        for (Event event : events) {
-            try {
-                mm.invoke(instance, event);
-            } catch (Exception e) {
-                throw new RuntimeException("Error when executing with reflection", e.getCause());
-            }
-        }
+    private void _applyEventsOn(final AggregateRoot instance, final List<? extends Event> events) {
+        StatefulEventBus bus = new StatefulEventBus(instance);
+        events.forEach(bus::apply);
     }
 }
