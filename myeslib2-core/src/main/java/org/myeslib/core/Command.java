@@ -3,9 +3,9 @@ package org.myeslib.core;
 import java.io.Serializable;
 import java.util.UUID;
 
-public interface Command<K> extends Serializable {
+public interface Command<T> extends Serializable {
 
     UUID getCommandId();
 
-    K getTargetId();
+    T getTargetId();
 }

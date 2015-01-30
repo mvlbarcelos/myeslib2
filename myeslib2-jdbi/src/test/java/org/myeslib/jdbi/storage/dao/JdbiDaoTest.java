@@ -4,11 +4,8 @@ import com.google.gson.Gson;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.myeslib.core.Command;
-import org.myeslib.data.CommandResults;
 import org.myeslib.data.UnitOfWork;
 import org.myeslib.data.UnitOfWorkHistory;
-import org.myeslib.jdbi.storage.dao.config.CommandSerialization;
 import org.myeslib.sampledomain.aggregates.inventoryitem.commands.DecreaseInventory;
 import org.myeslib.sampledomain.aggregates.inventoryitem.events.InventoryDecreased;
 import org.myeslib.sampledomain.aggregates.inventoryitem.events.InventoryIncreased;
@@ -27,7 +24,6 @@ public class JdbiDaoTest extends DbAwareBaseTestClass {
 
     Gson gson;
     UowSerialization functions;
-    CommandSerialization<UUID> cmdSer;
     DbMetadata dbMetadata;
     JdbiDao<UUID> dao;
 
@@ -42,11 +38,8 @@ public class JdbiDaoTest extends DbAwareBaseTestClass {
         functions = new UowSerialization(
                 gson::toJson,
                 (json) -> gson.fromJson(json, UnitOfWork.class));
-        cmdSer = new CommandSerialization<UUID>(
-                gson::toJson,
-                (json) -> gson.fromJson(json, Command.class));
         dbMetadata = new DbMetadata("inventory_item");
-        dao = new JdbiDao<>(functions, cmdSer, dbMetadata, dbi);
+        dao = new JdbiDao<>(functions, dbMetadata, dbi);
     }
 
     @Test
@@ -54,15 +47,11 @@ public class JdbiDaoTest extends DbAwareBaseTestClass {
 
         UUID id = UUID.randomUUID();
 
-        IncreaseInventory command = new IncreaseInventory(UUID.randomUUID(), id, 1);
-        
         UnitOfWorkHistory toSave = new UnitOfWorkHistory();
-        UnitOfWork newUow = UnitOfWork.create(UUID.randomUUID(), command.getCommandId(), 0L, Arrays.asList(InventoryIncreased.create(1)));
+        UnitOfWork newUow = UnitOfWork.create(UUID.randomUUID(), new IncreaseInventory(UUID.randomUUID(), id, 1), 0L, Arrays.asList(InventoryIncreased.create(1)));
         toSave.add(newUow);
 
-        CommandResults<UUID> results = new CommandResults(command, newUow);
-
-        dao.append(results);
+        dao.append(id, newUow);
 
         UnitOfWorkHistory fromDb = dao.getFull(id);
 
@@ -75,22 +64,15 @@ public class JdbiDaoTest extends DbAwareBaseTestClass {
 
         UUID id = UUID.randomUUID();
 
-        IncreaseInventory command1 = new IncreaseInventory(UUID.randomUUID(), id, 1);
-        DecreaseInventory command2 = new DecreaseInventory(UUID.randomUUID(), id, 1);
-
-        UnitOfWork existingUow = UnitOfWork.create(UUID.randomUUID(), command1.getCommandId(), 0L, Arrays.asList(InventoryIncreased.create(1)));
+        UnitOfWork existingUow = UnitOfWork.create(UUID.randomUUID(), new IncreaseInventory(UUID.randomUUID(), id, 1), 0L, Arrays.asList(InventoryIncreased.create(1)));
         UnitOfWorkHistory existing = new UnitOfWorkHistory();
         existing.add(existingUow);
 
-        CommandResults<UUID> results1 = new CommandResults(command1, existingUow);
+        UnitOfWork newUow = UnitOfWork.create(UUID.randomUUID(), new DecreaseInventory(UUID.randomUUID(), id, 1), 1L, Arrays.asList(InventoryDecreased.create((1))));
 
-        UnitOfWork newUow = UnitOfWork.create(UUID.randomUUID(), command2.getCommandId(), 1L, Arrays.asList(InventoryDecreased.create((1))));
+        dao.append(id, existingUow);
 
-        CommandResults<UUID> results2 = new CommandResults(command2, newUow);
-
-        dao.append(results1);
-
-        dao.append(results2);
+        dao.append(id, newUow);
 
         UnitOfWorkHistory fromDb = dao.getFull(id);
 
@@ -104,21 +86,20 @@ public class JdbiDaoTest extends DbAwareBaseTestClass {
 
         UUID id = UUID.randomUUID();
 
-        IncreaseInventory command1 = new IncreaseInventory(UUID.randomUUID(), id, 1);
-        DecreaseInventory command2 = new DecreaseInventory(UUID.randomUUID(), id, 1);
+        UnitOfWork existingUow = UnitOfWork.create(UUID.randomUUID(), new IncreaseInventory(UUID.randomUUID(), id, 1), 0L, Arrays.asList(InventoryIncreased.create((1))));
 
-        UnitOfWork existingUow = UnitOfWork.create(UUID.randomUUID(), command1.getCommandId(), 0L, Arrays.asList(InventoryIncreased.create((1))));
         UnitOfWorkHistory existing = new UnitOfWorkHistory();
+
         existing.add(existingUow);
-        CommandResults<UUID> results1 = new CommandResults(command1, existingUow);
 
-        dao.append(results1);
+        dao.append(id, existingUow);
 
-        UnitOfWork newUow = UnitOfWork.create(UUID.randomUUID(), command2.getCommandId(), 0L, Arrays.asList(InventoryDecreased.create((1))));
-        CommandResults<UUID> results2 = new CommandResults(command2, newUow);
+        UnitOfWork newUow = UnitOfWork.create(UUID.randomUUID(), new DecreaseInventory(UUID.randomUUID(), id, 1), 0L, Arrays.asList(InventoryDecreased.create((1))));
 
-        dao.append(results2);
+        dao.append(id, newUow);
 
     }
+
+    // TODO batchCommitTest and batchRollbackTest
 
 }
