@@ -7,9 +7,7 @@ import com.google.gson.Gson;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.myeslib.core.Command;
 import org.myeslib.core.Event;
-import org.myeslib.data.CommandResults;
 import org.myeslib.data.Snapshot;
 import org.myeslib.data.UnitOfWork;
 import org.myeslib.function.SnapshotComputing;
@@ -17,7 +15,6 @@ import org.myeslib.jdbi.function.MutableSnapshotComputing;
 import org.myeslib.jdbi.storage.JdbiJournal;
 import org.myeslib.jdbi.storage.JdbiReader;
 import org.myeslib.jdbi.storage.dao.JdbiDao;
-import org.myeslib.jdbi.storage.dao.config.CommandSerialization;
 import org.myeslib.jdbi.storage.dao.config.DbMetadata;
 import org.myeslib.jdbi.storage.dao.config.UowSerialization;
 import org.myeslib.jdbi.storage.helpers.DbAwareBaseTestClass;
@@ -44,7 +41,6 @@ public class EventBusApproachTest extends DbAwareBaseTestClass {
 
     Gson gson;
     UowSerialization functions;
-    CommandSerialization<UUID> cmdSer;
     DbMetadata dbMetadata;
     JdbiDao<UUID> dao;
     Cache<UUID, Snapshot<InventoryItem>> cache;
@@ -64,11 +60,8 @@ public class EventBusApproachTest extends DbAwareBaseTestClass {
         functions = new UowSerialization(
                 gson::toJson,
                 (json) -> gson.fromJson(json, UnitOfWork.class));
-        cmdSer = new CommandSerialization<UUID>(
-                gson::toJson,
-                (json) -> gson.fromJson(json, Command.class));
         dbMetadata = new DbMetadata("inventory_item");
-        dao = new JdbiDao<>(functions, cmdSer, dbMetadata, dbi);
+        dao = new JdbiDao<>(functions, dbMetadata, dbi);
         cache = CacheBuilder.newBuilder().maximumSize(1000).build();
         snapshotComputing = new MutableSnapshotComputing<>();
         snapshotReader = new JdbiReader<>(() -> InventoryItem.builder().build(), dao, cache, snapshotComputing);
@@ -86,8 +79,8 @@ public class EventBusApproachTest extends DbAwareBaseTestClass {
 
         Snapshot<InventoryItem> snapshot = snapshotReader.getSnapshot(command.getTargetId());
         CreateInventoryItemHandler handler = new CreateInventoryItemHandler(service);
-        CommandResults<UUID> results = handler.handle(command, snapshot);
-        journal.append(results);
+        UnitOfWork uow = handler.handle(command, snapshot).getUnitOfWork();
+        journal.append(command.getTargetId(), uow);
 
         InventoryItem expected = InventoryItem.builder().id(itemId).description(itemId.toString()).available(0).build();
         Snapshot<InventoryItem> expectedSnapshot = new Snapshot<>(expected, 1L);
@@ -105,8 +98,8 @@ public class EventBusApproachTest extends DbAwareBaseTestClass {
         CreateInventoryItem validCommand = new CreateInventoryItem(UUID.randomUUID(), itemId);
         Snapshot<InventoryItem> snapshot = snapshotReader.getSnapshot(validCommand.getTargetId());
         CreateInventoryItemHandler handler = new CreateInventoryItemHandler(service);
-        CommandResults<UUID> results = handler.handle(validCommand, snapshot);
-        journal.append(results);
+        UnitOfWork uow = handler.handle(validCommand, snapshot).getUnitOfWork();
+        journal.append(validCommand.getTargetId(), uow);
 
         InventoryItem expected = InventoryItem.builder().id(itemId).description(itemId.toString()).available(0).build();
         Snapshot<InventoryItem> expectedSnapshot = new Snapshot<>(expected, 1L);
@@ -116,9 +109,9 @@ public class EventBusApproachTest extends DbAwareBaseTestClass {
 
         // now increase (will fail since it has targetVersion = 0 instead of 1)
         IncreaseInventory invalidCommand = new IncreaseInventory(UUID.randomUUID(), itemId, 3);
-        CommandResults<UUID> resultsWillFail = new IncreaseHandler().handle(invalidCommand, snapshot);
+        UnitOfWork uowWillFail = new IncreaseHandler().handle(invalidCommand, snapshot).getUnitOfWork();
         // since IncreaseHandler is using the same snapshot we used on first operation, the next line will fail
-        journal.append(resultsWillFail);
+        journal.append(invalidCommand.getTargetId(), uowWillFail);
 
     }
 
@@ -131,8 +124,8 @@ public class EventBusApproachTest extends DbAwareBaseTestClass {
         CreateInventoryItemThenIncreaseThenDecrease command = new CreateInventoryItemThenIncreaseThenDecrease(UUID.randomUUID(), itemId, 2, 1);
 
         Snapshot<InventoryItem> snapshot = snapshotReader.getSnapshot(command.getTargetId());
-        CommandResults<UUID> results = new CreateThenIncreaseThenDecreaseHandler(service).handle(command, snapshot);
-        journal.append(results);
+        UnitOfWork uow = new CreateThenIncreaseThenDecreaseHandler(service).handle(command, snapshot).getUnitOfWork();
+        journal.append(command.getTargetId(), uow);
 
         InventoryItem expected = InventoryItem.builder().id(itemId).description(itemId.toString()).available(1).build();
         Snapshot<InventoryItem> expectedSnapshot = new Snapshot<>(expected, 1L);
