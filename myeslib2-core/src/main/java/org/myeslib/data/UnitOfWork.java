@@ -52,6 +52,12 @@ public class UnitOfWork implements Comparable<UnitOfWork>, Serializable {
         return new UnitOfWork(id, command, command.getTargetVersion() + 1, newEvents);
     }
 
+    public static UnitOfWork create(UUID id, Command command, Long targetVersion, List<? extends Event> newEvents) {
+        requireNonNull(targetVersion, "target version cannot be null");
+        targetVersionIsBiggerThanZero(targetVersion);
+        return new UnitOfWork(id, command, targetVersion + 1, newEvents);
+    }
+
     public List<Event> getEvents() {
         List<Event> result = new LinkedList<>();
         for (Event e : events) {
