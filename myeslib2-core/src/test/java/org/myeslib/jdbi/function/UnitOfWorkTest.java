@@ -24,6 +24,15 @@ public class UnitOfWorkTest {
         assertThat(uow.getVersion(), is(1L));
     }
 
+    @Test
+    public void versionShouldBeCommandVersionPlusOneOnWorkArround() {
+        List<Event> events = Arrays.asList(new EventJustForTest(UUID.randomUUID(), 1));
+        CommandJustForTest command = new CommandJustForTest(UUID.randomUUID(), UUID.randomUUID(), 0L);
+        UnitOfWork uow = UnitOfWork.create(UUID.randomUUID(), command, command.getTargetVersion(), events);
+        assertThat(uow.getTargetVersion(), is(0L));
+        assertThat(uow.getVersion(), is(1L));
+    }
+
     @SuppressWarnings("unused")
     @Test(expected = NullPointerException.class)
     public void nullEvent() {
